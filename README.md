@@ -1,5 +1,7 @@
 # Cursor 用量明细
 
+original by https://linux.do/t/topic/2797247
+
 在 Cursor 网页右下角显示个人订阅花了多少钱。官方只给百分比，这个扩展补上美元数字。
 
 数据只在你已登录的 Cursor 页面里读，不会上传。
