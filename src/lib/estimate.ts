@@ -28,7 +28,9 @@ export type LearnedCap = {
   value: number;
 };
 
-export type LearnedFirstParty = LearnedCap & { planKey: PlanKey };
+export type LearnedPlanCap = LearnedCap & { planKey: PlanKey };
+export type LearnedFirstParty = LearnedPlanCap;
+export type LearnedOther = LearnedPlanCap;
 
 export type PlanInfoCaps = {
   planName: string | null;
@@ -92,29 +94,26 @@ export function ratioPct(used: number | null, total: number | null): number | nu
   return (used / total) * 100;
 }
 
+/** Remaining dollars in a pool. Null when either side is missing. */
+export function remainingUsd(used: number | null, total: number | null): number | null {
+  if (used == null || total == null) return null;
+  if (!Number.isFinite(used) || !Number.isFinite(total)) return null;
+  return Math.max(0, total - used);
+}
+
 /**
- * Other Models dollars. Cursor's plan.used/limit is an included meter that
- * saturates at the API cap; it is not this pool. Official Other spend is
- * limit × apiPercentUsed / 100 (same as the dashboard "included API usage").
+ * First-party / Other pool cap: accumulated model spend ÷ official usage percent,
+ * rounded to $10. plan.used/limit is an included meter that saturates at the API
+ * cap and is not either pool.
  */
-export function estimateOtherPool(
-  officialLimitUsd: number | null,
-  apiPct: number | null,
-): { used: number | null; total: number | null; pct: number | null; remaining: number | null } {
-  const total =
-    officialLimitUsd != null && Number.isFinite(officialLimitUsd) && officialLimitUsd > 0
-      ? officialLimitUsd
-      : null;
-  if (total == null || apiPct == null || !Number.isFinite(apiPct)) {
-    return { used: null, total, pct: apiPct, remaining: null };
-  }
-  const used = (total * apiPct) / 100;
-  return {
-    used,
-    total,
-    pct: apiPct,
-    remaining: Math.max(0, total - used),
-  };
+export function estimatePlanTotal(
+  used: number | null,
+  pct: number | null,
+  planKey: PlanKey,
+  learned: LearnedPlanCap | null | undefined = null,
+): CapEstimate {
+  const prior = learned && learned.planKey === planKey && learned.value > 0 ? learned : null;
+  return estimateInvertedCap(used, pct, prior);
 }
 
 export function estimateFirstPartyTotal(
@@ -123,9 +122,16 @@ export function estimateFirstPartyTotal(
   planKey: PlanKey,
   opts: { learned?: LearnedFirstParty | null } = {},
 ): CapEstimate {
-  const learned =
-    opts.learned && opts.learned.planKey === planKey && opts.learned.value > 0 ? opts.learned : null;
-  return estimateInvertedCap(used, autoPct, learned);
+  return estimatePlanTotal(used, autoPct, planKey, opts.learned);
+}
+
+export function estimateOtherTotal(
+  used: number | null,
+  apiPct: number | null,
+  planKey: PlanKey,
+  opts: { learned?: LearnedOther | null } = {},
+): CapEstimate {
+  return estimatePlanTotal(used, apiPct, planKey, opts.learned);
 }
 
 export function daysUntil(iso: string | null | undefined): number | null {
@@ -295,6 +301,7 @@ export function buildView(
   extras: {
     planInfo?: unknown;
     learned?: LearnedFirstParty | null;
+    learnedOther?: LearnedOther | null;
     learnedBot?: LearnedCap | null;
     weekEvents?: AggregatedUsage | null;
   } = {},
@@ -305,36 +312,27 @@ export function buildView(
   const teamUnsupported = !hasIndividual && hasTeamData(summary.teamUsage);
   const planKey = normalizePlan(summary.membershipType);
   const hasEvents = events != null;
-  const planCaps = parsePlanInfo(extras.planInfo);
 
   const autoPct = plan?.autoPercentUsed == null ? null : num(plan.autoPercentUsed);
   const apiPct = plan?.apiPercentUsed == null ? null : num(plan.apiPercentUsed);
-  const otherFromSummary = plan?.limit == null ? null : centsToUsd(plan.limit);
-  const otherLimitOfficial =
-    otherFromSummary != null && otherFromSummary > 0 ? otherFromSummary : planCaps.otherUsd;
   const bonus = plan?.breakdown?.bonus == null ? 0 : centsToUsd(plan.breakdown.bonus);
 
   const models = rowsFromEvents(events);
   const cursorUsed = hasEvents ? laneSum(models, "cursor") : null;
+  const otherUsed = hasEvents ? laneSum(models, "other") : null;
   const botAmount = hasEvents ? laneSum(models, "bot") : 0;
   const unknownCost = hasEvents ? laneSum(models, "unknown") : 0;
 
   const first = estimateFirstPartyTotal(cursorUsed, autoPct, planKey, { learned: extras.learned });
-  const otherPool = estimateOtherPool(otherLimitOfficial, apiPct);
-  const otherUsed = otherPool.used;
-  const otherLimit = otherPool.total;
-  const otherPct = otherPool.pct;
-  const otherRemaining = otherPool.remaining;
-  const otherOfficial = otherUsed != null && otherLimit != null && otherPct != null;
+  const otherEst = estimateOtherTotal(otherUsed, apiPct, planKey, { learned: extras.learnedOther });
+  const otherRemaining = remainingUsd(otherUsed, otherEst.value);
+  const otherOfficial = apiPct != null;
   const sandUsage = parseSandUsage(sand);
   const weekEvents = extras.weekEvents;
   const botUsed = weekEvents != null ? laneSum(rowsFromEvents(weekEvents), "bot") : null;
   const botEst = estimateInvertedCap(botUsed, sandUsage.pct, extras.learnedBot ?? null);
-  const botRemaining =
-    botEst.value != null && botUsed != null ? Math.max(0, botEst.value - botUsed) : null;
-
-  const cursorRemaining =
-    first.value != null && cursorUsed != null ? Math.max(0, first.value - cursorUsed) : null;
+  const botRemaining = remainingUsd(botUsed, botEst.value);
+  const cursorRemaining = remainingUsd(cursorUsed, first.value);
 
   const onDemandUsed = onDemand?.used == null ? null : centsToUsd(onDemand.used);
   const onDemandLimit = onDemand?.limit == null ? null : centsToUsd(onDemand.limit);
@@ -350,6 +348,15 @@ export function buildView(
     learnedFull: "第一方进度已满，总额沿用上次估算。",
   });
   if (firstNote) notes.push(firstNote);
+  const otherNote = invertGapNote(otherEst.source, apiPct, otherUsed, {
+    noneZero: "当前无法推断 Other Models 总额。本周期还没有第三方用量，也没有历史估算。",
+    noneMissing: "当前无法推断 Other Models 总额。没有第三方账单，也没有历史估算。",
+    noneFull: "第三方进度已满，无法从百分比反推总额。",
+    learnedZero: "本周期第三方用量为 0，总额沿用上次估算。",
+    learnedMissing: "没有第三方账单，总额沿用上次估算。",
+    learnedFull: "第三方进度已满，总额沿用上次估算。",
+  });
+  if (otherNote && (apiPct != null || otherUsed != null || otherEst.source === "learned")) notes.push(otherNote);
   const botNote = invertGapNote(botEst.source, sandUsage.pct, botUsed, {
     noneZero: "当前无法推断 Grok Bot 周限额。本周还没有 Bot 用量，也没有历史估算。",
     noneMissing: "当前无法推断 Grok Bot 周限额。没有本周 Bot 账单，也没有历史估算。",
@@ -374,7 +381,7 @@ export function buildView(
   if (!hasEvents) {
     notes.push({
       tone: "warn",
-      text: "用量事件未拉到，第一方已用金额无法按模型加总。",
+      text: "用量事件未拉到，第一方和第三方已用金额无法按模型加总。",
     });
   }
   if (sandUsage.pct != null && sandUsage.pct >= MAX_INVERT_PCT) {
@@ -408,9 +415,11 @@ export function buildView(
     },
     other: {
       used: otherUsed,
-      total: otherLimit,
-      pct: otherPct,
+      total: otherEst.value,
+      pct: apiPct,
       remaining: otherRemaining,
+      totalSource: otherEst.source,
+      totalLabel: otherEst.label,
       official: otherOfficial,
       bonus,
     },
@@ -443,15 +452,18 @@ export function buildView(
 
 export function snapshotNeedsUpgrade(view: unknown): boolean {
   if (!view || typeof view !== "object") return false;
-  if (!("bot" in view)) return true;
-  const bot = (view as UsageView).bot;
-  return !bot || !("totalSource" in bot);
+  const rec = view as UsageView;
+  if (!("bot" in rec)) return true;
+  if (!rec.bot || !("totalSource" in rec.bot)) return true;
+  if (!rec.other || !("totalSource" in rec.other)) return true;
+  return false;
 }
 
 /** Fill fields that older stored snapshots may omit. */
 export function hydrateUsageView(view: UsageView): UsageView {
   const other = view.other;
-  const otherPool = estimateOtherPool(other?.total ?? null, other?.pct ?? null);
+  const otherUsed = other?.used ?? null;
+  const otherTotal = other?.total ?? null;
   const models = view.models || [];
   const botAmount =
     view.bot?.amount ??
@@ -461,11 +473,13 @@ export function hydrateUsageView(view: UsageView): UsageView {
   return {
     ...view,
     other: {
-      used: otherPool.used,
-      total: otherPool.total,
-      pct: otherPool.pct,
-      remaining: otherPool.remaining,
-      official: otherPool.used != null && otherPool.total != null && otherPool.pct != null,
+      used: otherUsed,
+      total: otherTotal,
+      pct: other?.pct ?? null,
+      remaining: other?.remaining ?? remainingUsd(otherUsed, otherTotal),
+      totalSource: other?.totalSource ?? (otherTotal != null ? "learned" : "none"),
+      totalLabel: other?.totalLabel ?? (otherTotal != null ? "沿用上次" : "无法推断"),
+      official: other?.official ?? other?.pct != null,
       bonus: other?.bonus ?? 0,
     },
     bot: {

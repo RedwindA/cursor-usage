@@ -192,7 +192,7 @@ export class UsagePanel {
     const title = this.collapsed && view
       ? [
           `${view.planLabel} · 第一方 ${formatMoney(view.cursor.used)} / ${formatMoney(view.cursor.total)} · ${formatPct(view.cursor.pct)}`,
-          `官方 Other ${formatMoney(view.other.used)} / ${formatMoney(view.other.total)} · ${formatPct(view.other.pct)}`,
+          `第三方 ${formatMoney(view.other.used)} / ${formatMoney(view.other.total)} · ${formatPct(view.other.pct)}`,
           view.bot.visible
             ? `Grok Bot ${formatMoney(view.bot.used)} / ${formatMoney(view.bot.total)} · ${formatPct(view.bot.pct)}`
             : "",
@@ -299,13 +299,14 @@ export class UsagePanel {
         poolCard({
           kind: "other",
           kicker: "Other Models",
-          title: "官方第三方池",
+          title: "第三方池",
           used: view.other.used,
           total: view.other.total,
           pct: view.other.pct,
           remaining: view.other.remaining,
-          badge: view.other.official ? "计入额度" : "推算",
-          badgeTone: view.other.official ? "ok" : "warn",
+          badge: view.other.totalLabel,
+          badgeTone:
+            view.other.totalSource === "inverted" ? "ok" : view.other.totalSource === "learned" ? "warn" : "muted",
           selected: this.modelFilter === "other",
           onSelect: () => this.toggleFilter("other"),
         }),

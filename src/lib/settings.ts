@@ -1,4 +1,4 @@
-import type { LearnedCap, LearnedFirstParty } from "./estimate";
+import type { LearnedCap, LearnedFirstParty, LearnedOther } from "./estimate";
 import type { PlanKey, UsageView } from "./types";
 
 export type RefreshPolicy = "always" | "1m" | "5m" | "10m" | "manual";
@@ -22,6 +22,7 @@ export const STORAGE_REFRESH_POLICY = "cu.refresh.policy";
 export const STORAGE_REFRESH_LAST_AT = "cu.refresh.lastAt";
 export const STORAGE_SNAPSHOT = "cu.refresh.snapshot";
 export const STORAGE_LEARNED_FIRST_PARTY = "cu.learned.firstParty";
+export const STORAGE_LEARNED_OTHER = "cu.learned.other";
 export const STORAGE_LEARNED_BOT = "cu.learned.bot";
 
 export function parsePolicy(value: unknown): RefreshPolicy {
@@ -93,6 +94,15 @@ export async function saveLearnedFirstParty(learned: LearnedFirstParty): Promise
   await chrome.storage.local.set({ [STORAGE_LEARNED_FIRST_PARTY]: learned });
 }
 
+export async function loadLearnedOther(): Promise<LearnedOther | null> {
+  const stored = await chrome.storage.local.get(STORAGE_LEARNED_OTHER);
+  return parseLearned(stored[STORAGE_LEARNED_OTHER]);
+}
+
+export async function saveLearnedOther(learned: LearnedOther): Promise<void> {
+  await chrome.storage.local.set({ [STORAGE_LEARNED_OTHER]: learned });
+}
+
 export async function loadLearnedBot(): Promise<LearnedCap | null> {
   const stored = await chrome.storage.local.get(STORAGE_LEARNED_BOT);
   return parseLearnedCap(stored[STORAGE_LEARNED_BOT]);
@@ -104,6 +114,11 @@ export async function saveLearnedBot(learned: LearnedCap): Promise<void> {
 
 export function learnedFromView(view: UsageView): LearnedFirstParty | null {
   const cap = capFromInvert(view.cursor.used, view.cursor.pct, view.cursor.total, view.cursor.totalSource);
+  return cap ? { planKey: view.planKey, ...cap } : null;
+}
+
+export function learnedOtherFromView(view: UsageView): LearnedOther | null {
+  const cap = capFromInvert(view.other.used, view.other.pct, view.other.total, view.other.totalSource);
   return cap ? { planKey: view.planKey, ...cap } : null;
 }
 

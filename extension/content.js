@@ -280,22 +280,20 @@
     if (!Number.isFinite(used) || !Number.isFinite(total) || total <= 0) return null;
     return used / total * 100;
   }
-  function estimateOtherPool(officialLimitUsd, apiPct) {
-    const total = officialLimitUsd != null && Number.isFinite(officialLimitUsd) && officialLimitUsd > 0 ? officialLimitUsd : null;
-    if (total == null || apiPct == null || !Number.isFinite(apiPct)) {
-      return { used: null, total, pct: apiPct, remaining: null };
-    }
-    const used = total * apiPct / 100;
-    return {
-      used,
-      total,
-      pct: apiPct,
-      remaining: Math.max(0, total - used)
-    };
+  function remainingUsd(used, total) {
+    if (used == null || total == null) return null;
+    if (!Number.isFinite(used) || !Number.isFinite(total)) return null;
+    return Math.max(0, total - used);
+  }
+  function estimatePlanTotal(used, pct, planKey, learned = null) {
+    const prior = learned && learned.planKey === planKey && learned.value > 0 ? learned : null;
+    return estimateInvertedCap(used, pct, prior);
   }
   function estimateFirstPartyTotal(used, autoPct, planKey, opts = {}) {
-    const learned = opts.learned && opts.learned.planKey === planKey && opts.learned.value > 0 ? opts.learned : null;
-    return estimateInvertedCap(used, autoPct, learned);
+    return estimatePlanTotal(used, autoPct, planKey, opts.learned);
+  }
+  function estimateOtherTotal(used, apiPct, planKey, opts = {}) {
+    return estimatePlanTotal(used, apiPct, planKey, opts.learned);
   }
   function daysUntil(iso) {
     if (!iso) return null;
@@ -330,27 +328,6 @@
       return rec.data;
     }
     return rec;
-  }
-  var FIRST_PARTY_CENTS_KEY = /(auto|cursor.?model|first.?party|composer).*(cents|limit|included|allowance|cap)/i;
-  function parsePlanInfo(input) {
-    const root = unwrapRecord(input);
-    const info = unwrapRecord(root?.planInfo) ?? (root && "includedAmountCents" in root ? root : null);
-    if (!info) return { planName: null, otherUsd: null, firstPartyUsd: null };
-    const planName = typeof info.planName === "string" && info.planName.trim() ? info.planName.trim() : null;
-    const otherUsd = centsFieldToUsd(info.includedAmountCents);
-    let firstPartyUsd = null;
-    for (const [key, value] of Object.entries(info)) {
-      if (key === "includedAmountCents") continue;
-      if (!FIRST_PARTY_CENTS_KEY.test(key)) continue;
-      const usd = centsFieldToUsd(value);
-      if (usd != null && (firstPartyUsd == null || usd > firstPartyUsd)) firstPartyUsd = usd;
-    }
-    return { planName, otherUsd, firstPartyUsd };
-  }
-  function centsFieldToUsd(value) {
-    const n = asFiniteNumber(value);
-    if (n == null || n <= 0) return null;
-    return n / 100;
   }
   function parseSandUsage(input) {
     const root = unwrapRecord(input);
@@ -416,29 +393,24 @@
     const teamUnsupported = !hasIndividual && hasTeamData(summary.teamUsage);
     const planKey = normalizePlan(summary.membershipType);
     const hasEvents = events != null;
-    const planCaps = parsePlanInfo(extras.planInfo);
     const autoPct = plan?.autoPercentUsed == null ? null : num(plan.autoPercentUsed);
     const apiPct = plan?.apiPercentUsed == null ? null : num(plan.apiPercentUsed);
-    const otherFromSummary = plan?.limit == null ? null : centsToUsd(plan.limit);
-    const otherLimitOfficial = otherFromSummary != null && otherFromSummary > 0 ? otherFromSummary : planCaps.otherUsd;
     const bonus = plan?.breakdown?.bonus == null ? 0 : centsToUsd(plan.breakdown.bonus);
     const models = rowsFromEvents(events);
     const cursorUsed = hasEvents ? laneSum(models, "cursor") : null;
+    const otherUsed = hasEvents ? laneSum(models, "other") : null;
     const botAmount = hasEvents ? laneSum(models, "bot") : 0;
     const unknownCost = hasEvents ? laneSum(models, "unknown") : 0;
     const first = estimateFirstPartyTotal(cursorUsed, autoPct, planKey, { learned: extras.learned });
-    const otherPool = estimateOtherPool(otherLimitOfficial, apiPct);
-    const otherUsed = otherPool.used;
-    const otherLimit = otherPool.total;
-    const otherPct = otherPool.pct;
-    const otherRemaining = otherPool.remaining;
-    const otherOfficial = otherUsed != null && otherLimit != null && otherPct != null;
+    const otherEst = estimateOtherTotal(otherUsed, apiPct, planKey, { learned: extras.learnedOther });
+    const otherRemaining = remainingUsd(otherUsed, otherEst.value);
+    const otherOfficial = apiPct != null;
     const sandUsage = parseSandUsage(sand);
     const weekEvents = extras.weekEvents;
     const botUsed = weekEvents != null ? laneSum(rowsFromEvents(weekEvents), "bot") : null;
     const botEst = estimateInvertedCap(botUsed, sandUsage.pct, extras.learnedBot ?? null);
-    const botRemaining = botEst.value != null && botUsed != null ? Math.max(0, botEst.value - botUsed) : null;
-    const cursorRemaining = first.value != null && cursorUsed != null ? Math.max(0, first.value - cursorUsed) : null;
+    const botRemaining = remainingUsd(botUsed, botEst.value);
+    const cursorRemaining = remainingUsd(cursorUsed, first.value);
     const onDemandUsed = onDemand?.used == null ? null : centsToUsd(onDemand.used);
     const onDemandLimit = onDemand?.limit == null ? null : centsToUsd(onDemand.limit);
     const onDemandVisible = !!(onDemand?.enabled || onDemandUsed != null && onDemandUsed > 0);
@@ -452,6 +424,15 @@
       learnedFull: "\u7B2C\u4E00\u65B9\u8FDB\u5EA6\u5DF2\u6EE1\uFF0C\u603B\u989D\u6CBF\u7528\u4E0A\u6B21\u4F30\u7B97\u3002"
     });
     if (firstNote) notes.push(firstNote);
+    const otherNote = invertGapNote(otherEst.source, apiPct, otherUsed, {
+      noneZero: "\u5F53\u524D\u65E0\u6CD5\u63A8\u65AD Other Models \u603B\u989D\u3002\u672C\u5468\u671F\u8FD8\u6CA1\u6709\u7B2C\u4E09\u65B9\u7528\u91CF\uFF0C\u4E5F\u6CA1\u6709\u5386\u53F2\u4F30\u7B97\u3002",
+      noneMissing: "\u5F53\u524D\u65E0\u6CD5\u63A8\u65AD Other Models \u603B\u989D\u3002\u6CA1\u6709\u7B2C\u4E09\u65B9\u8D26\u5355\uFF0C\u4E5F\u6CA1\u6709\u5386\u53F2\u4F30\u7B97\u3002",
+      noneFull: "\u7B2C\u4E09\u65B9\u8FDB\u5EA6\u5DF2\u6EE1\uFF0C\u65E0\u6CD5\u4ECE\u767E\u5206\u6BD4\u53CD\u63A8\u603B\u989D\u3002",
+      learnedZero: "\u672C\u5468\u671F\u7B2C\u4E09\u65B9\u7528\u91CF\u4E3A 0\uFF0C\u603B\u989D\u6CBF\u7528\u4E0A\u6B21\u4F30\u7B97\u3002",
+      learnedMissing: "\u6CA1\u6709\u7B2C\u4E09\u65B9\u8D26\u5355\uFF0C\u603B\u989D\u6CBF\u7528\u4E0A\u6B21\u4F30\u7B97\u3002",
+      learnedFull: "\u7B2C\u4E09\u65B9\u8FDB\u5EA6\u5DF2\u6EE1\uFF0C\u603B\u989D\u6CBF\u7528\u4E0A\u6B21\u4F30\u7B97\u3002"
+    });
+    if (otherNote && (apiPct != null || otherUsed != null || otherEst.source === "learned")) notes.push(otherNote);
     const botNote = invertGapNote(botEst.source, sandUsage.pct, botUsed, {
       noneZero: "\u5F53\u524D\u65E0\u6CD5\u63A8\u65AD Grok Bot \u5468\u9650\u989D\u3002\u672C\u5468\u8FD8\u6CA1\u6709 Bot \u7528\u91CF\uFF0C\u4E5F\u6CA1\u6709\u5386\u53F2\u4F30\u7B97\u3002",
       noneMissing: "\u5F53\u524D\u65E0\u6CD5\u63A8\u65AD Grok Bot \u5468\u9650\u989D\u3002\u6CA1\u6709\u672C\u5468 Bot \u8D26\u5355\uFF0C\u4E5F\u6CA1\u6709\u5386\u53F2\u4F30\u7B97\u3002",
@@ -476,7 +457,7 @@
     if (!hasEvents) {
       notes.push({
         tone: "warn",
-        text: "\u7528\u91CF\u4E8B\u4EF6\u672A\u62C9\u5230\uFF0C\u7B2C\u4E00\u65B9\u5DF2\u7528\u91D1\u989D\u65E0\u6CD5\u6309\u6A21\u578B\u52A0\u603B\u3002"
+        text: "\u7528\u91CF\u4E8B\u4EF6\u672A\u62C9\u5230\uFF0C\u7B2C\u4E00\u65B9\u548C\u7B2C\u4E09\u65B9\u5DF2\u7528\u91D1\u989D\u65E0\u6CD5\u6309\u6A21\u578B\u52A0\u603B\u3002"
       });
     }
     if (sandUsage.pct != null && sandUsage.pct >= MAX_INVERT_PCT) {
@@ -509,9 +490,11 @@
       },
       other: {
         used: otherUsed,
-        total: otherLimit,
-        pct: otherPct,
+        total: otherEst.value,
+        pct: apiPct,
         remaining: otherRemaining,
+        totalSource: otherEst.source,
+        totalLabel: otherEst.label,
         official: otherOfficial,
         bonus
       },
@@ -543,13 +526,16 @@
   }
   function snapshotNeedsUpgrade(view) {
     if (!view || typeof view !== "object") return false;
-    if (!("bot" in view)) return true;
-    const bot = view.bot;
-    return !bot || !("totalSource" in bot);
+    const rec = view;
+    if (!("bot" in rec)) return true;
+    if (!rec.bot || !("totalSource" in rec.bot)) return true;
+    if (!rec.other || !("totalSource" in rec.other)) return true;
+    return false;
   }
   function hydrateUsageView(view) {
     const other = view.other;
-    const otherPool = estimateOtherPool(other?.total ?? null, other?.pct ?? null);
+    const otherUsed = other?.used ?? null;
+    const otherTotal = other?.total ?? null;
     const models = view.models || [];
     const botAmount = view.bot?.amount ?? models.filter((model) => modelLane(model) === "bot").reduce((sum, model) => sum + model.cost, 0);
     const resetAt = view.bot?.resetAt ?? null;
@@ -557,11 +543,13 @@
     return {
       ...view,
       other: {
-        used: otherPool.used,
-        total: otherPool.total,
-        pct: otherPool.pct,
-        remaining: otherPool.remaining,
-        official: otherPool.used != null && otherPool.total != null && otherPool.pct != null,
+        used: otherUsed,
+        total: otherTotal,
+        pct: other?.pct ?? null,
+        remaining: other?.remaining ?? remainingUsd(otherUsed, otherTotal),
+        totalSource: other?.totalSource ?? (otherTotal != null ? "learned" : "none"),
+        totalLabel: other?.totalLabel ?? (otherTotal != null ? "\u6CBF\u7528\u4E0A\u6B21" : "\u65E0\u6CD5\u63A8\u65AD"),
+        official: other?.official ?? other?.pct != null,
         bonus: other?.bonus ?? 0
       },
       bot: {
@@ -597,6 +585,7 @@
   var STORAGE_REFRESH_LAST_AT = "cu.refresh.lastAt";
   var STORAGE_SNAPSHOT = "cu.refresh.snapshot";
   var STORAGE_LEARNED_FIRST_PARTY = "cu.learned.firstParty";
+  var STORAGE_LEARNED_OTHER = "cu.learned.other";
   var STORAGE_LEARNED_BOT = "cu.learned.bot";
   function parsePolicy(value) {
     return REFRESH_POLICY_OPTIONS.some((item) => item.id === value) ? value : DEFAULT_REFRESH_POLICY;
@@ -651,6 +640,13 @@
   async function saveLearnedFirstParty(learned) {
     await chrome.storage.local.set({ [STORAGE_LEARNED_FIRST_PARTY]: learned });
   }
+  async function loadLearnedOther() {
+    const stored = await chrome.storage.local.get(STORAGE_LEARNED_OTHER);
+    return parseLearned(stored[STORAGE_LEARNED_OTHER]);
+  }
+  async function saveLearnedOther(learned) {
+    await chrome.storage.local.set({ [STORAGE_LEARNED_OTHER]: learned });
+  }
   async function loadLearnedBot() {
     const stored = await chrome.storage.local.get(STORAGE_LEARNED_BOT);
     return parseLearnedCap(stored[STORAGE_LEARNED_BOT]);
@@ -660,6 +656,10 @@
   }
   function learnedFromView(view) {
     const cap = capFromInvert(view.cursor.used, view.cursor.pct, view.cursor.total, view.cursor.totalSource);
+    return cap ? { planKey: view.planKey, ...cap } : null;
+  }
+  function learnedOtherFromView(view) {
+    const cap = capFromInvert(view.other.used, view.other.pct, view.other.total, view.other.totalSource);
     return cap ? { planKey: view.planKey, ...cap } : null;
   }
   function learnedBotFromView(view) {
@@ -874,7 +874,7 @@
       const view = this.view;
       const title = this.collapsed && view ? [
         `${view.planLabel} \xB7 \u7B2C\u4E00\u65B9 ${formatMoney(view.cursor.used)} / ${formatMoney(view.cursor.total)} \xB7 ${formatPct(view.cursor.pct)}`,
-        `\u5B98\u65B9 Other ${formatMoney(view.other.used)} / ${formatMoney(view.other.total)} \xB7 ${formatPct(view.other.pct)}`,
+        `\u7B2C\u4E09\u65B9 ${formatMoney(view.other.used)} / ${formatMoney(view.other.total)} \xB7 ${formatPct(view.other.pct)}`,
         view.bot.visible ? `Grok Bot ${formatMoney(view.bot.used)} / ${formatMoney(view.bot.total)} \xB7 ${formatPct(view.bot.pct)}` : ""
       ].filter(Boolean).join(" \xB7 ") : "Cursor \u7528\u91CF";
       return h(
@@ -996,13 +996,13 @@
           poolCard({
             kind: "other",
             kicker: "Other Models",
-            title: "\u5B98\u65B9\u7B2C\u4E09\u65B9\u6C60",
+            title: "\u7B2C\u4E09\u65B9\u6C60",
             used: view.other.used,
             total: view.other.total,
             pct: view.other.pct,
             remaining: view.other.remaining,
-            badge: view.other.official ? "\u8BA1\u5165\u989D\u5EA6" : "\u63A8\u7B97",
-            badgeTone: view.other.official ? "ok" : "warn",
+            badge: view.other.totalLabel,
+            badgeTone: view.other.totalSource === "inverted" ? "ok" : view.other.totalSource === "learned" ? "warn" : "muted",
             selected: this.modelFilter === "other",
             onSelect: () => this.toggleFilter("other")
           }),
@@ -1547,6 +1547,7 @@
   var lastAt = null;
   var upgradeFetch = false;
   var learnedFirstParty = null;
+  var learnedOther = null;
   var learnedBot = null;
   function postToPage(type, extra = {}) {
     window.postMessage({ channel: CHANNEL, type, ...extra }, window.location.origin);
@@ -1557,15 +1558,17 @@
     return rec.channel === CHANNEL && typeof rec.type === "string";
   }
   async function boot() {
-    const [cssText, settings, learned, botLearned] = await Promise.all([
+    const [cssText, settings, learned, otherLearned, botLearned] = await Promise.all([
       fetch(CSS_URL).then((r) => r.text()),
       loadRefreshSettings(),
       loadLearnedFirstParty(),
+      loadLearnedOther(),
       loadLearnedBot()
     ]);
     policy = settings.policy;
     lastAt = settings.lastAt;
     learnedFirstParty = learned;
+    learnedOther = otherLearned;
     learnedBot = botLearned;
     panel = new UsagePanel(cssText, {
       onRefresh: () => refresh(true),
@@ -1624,6 +1627,7 @@
       const view = buildView(msg.payload.summary, msg.payload.events, msg.payload.sand, {
         planInfo: msg.payload.planInfo,
         learned: learnedFirstParty,
+        learnedOther,
         learnedBot,
         weekEvents: msg.payload.weekEvents
       });
@@ -1640,6 +1644,11 @@
       if (nextLearned) {
         learnedFirstParty = nextLearned;
         void saveLearnedFirstParty(nextLearned);
+      }
+      const nextOther = learnedOtherFromView(view);
+      if (nextOther) {
+        learnedOther = nextOther;
+        void saveLearnedOther(nextOther);
       }
       const nextBot = learnedBotFromView(view);
       if (nextBot) {

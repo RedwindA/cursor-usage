@@ -15,7 +15,7 @@ await build({
   logLevel: "silent",
 });
 
-const { buildView, canInvertFirstParty, estimateFirstPartyTotal, estimateInvertedCap, estimateOtherPool, hydrateUsageView, parsePlanInfo, parseSandUsage, ratioPct, roundToTen, snapshotNeedsUpgrade } = await import(pathToFileURL(outfile).href);
+const { buildView, canInvertFirstParty, estimateFirstPartyTotal, estimateInvertedCap, estimateOtherTotal, hydrateUsageView, parsePlanInfo, parseSandUsage, ratioPct, roundToTen, snapshotNeedsUpgrade } = await import(pathToFileURL(outfile).href);
 const { classifyModel, isBotModel, modelLane, modelMatchesFilter, normalizePlan, parseModelFilter } = await import(pathToFileURL(outfile).href);
 
 function assert(cond, message) {
@@ -101,8 +101,34 @@ const otherFromPlanInfo = buildView(
   null,
   { planInfo: { planInfo: { includedAmountCents: 40000 } } },
 );
-assert(nearly(otherFromPlanInfo.other.total, 400), `plan-info other total ${otherFromPlanInfo.other.total}`);
-assert(nearly(otherFromPlanInfo.other.used, 400 * 18.1 / 100), `plan-info other used ${otherFromPlanInfo.other.used}`);
+assert(otherFromPlanInfo.other.total == null, "plan-info cap is not the other pool");
+assert(otherFromPlanInfo.other.used == null, "other used needs model events");
+assert(otherFromPlanInfo.other.totalSource === "none", "no events cannot invert other");
+
+const otherInverted = estimateOtherTotal(72.4, 18.1, "ultra");
+assert(otherInverted.source === "inverted", "other should invert");
+assert(otherInverted.value === 400, `other invert got ${otherInverted.value}`);
+
+const otherFromEvents = buildView(
+  { membershipType: "ultra", individualUsage: { plan: { apiPercentUsed: 18.1 } } },
+  { aggregations: [{ modelIntent: "claude-4.6-opus", totalCents: 7240, tier: 1 }] },
+);
+assert(nearly(otherFromEvents.other.used, 72.4), `other used ${otherFromEvents.other.used}`);
+assert(otherFromEvents.other.total === 400, `other total ${otherFromEvents.other.total}`);
+assert(otherFromEvents.other.totalSource === "inverted", "other is inverted from events");
+assert(nearly(otherFromEvents.other.remaining, 400 - 72.4), `other remaining ${otherFromEvents.other.remaining}`);
+
+const otherExcludesBot = buildView(
+  { membershipType: "ultra", individualUsage: { plan: { apiPercentUsed: 18.1 } } },
+  {
+    aggregations: [
+      { modelIntent: "claude-4.6-opus", totalCents: 7240, tier: 1 },
+      { modelIntent: "grok-bot", totalCents: 66026, tier: 1 },
+    ],
+  },
+);
+assert(nearly(otherExcludesBot.other.used, 72.4), "bot spend is not other-pool used");
+assert(otherExcludesBot.other.total === 400, "bot spend does not inflate other total");
 
 const firstIgnoresPlanInfoCap = buildView(
   { membershipType: "ultra", individualUsage: { plan: { autoPercentUsed: 1.135 } } },
@@ -158,6 +184,7 @@ const view = buildView(
   {
     aggregations: [
       { modelIntent: "cursor-grok-4.6-xhigh-fast", totalCents: 2270, tier: 2 },
+      { modelIntent: "claude-4.6-opus", totalCents: 144.8, tier: 1 },
       { modelIntent: "grok-bot", totalCents: 7370, tier: 1 },
     ],
   },
@@ -166,8 +193,9 @@ const view = buildView(
 assert(nearly(view.cursor.used, 22.7), `cursor used ${view.cursor.used}`);
 assert(view.cursor.totalSource === "inverted", "view first-party is inverted");
 assert(view.cursor.total === 2000, `view first-party total ${view.cursor.total}`);
-assert(nearly(view.other.used, 400 * 0.362 / 100), `other used should be limit×api%, got ${view.other.used}`);
-assert(view.other.official, "other should be official");
+assert(nearly(view.other.used, 1.448), `other used ${view.other.used}`);
+assert(view.other.total === 400, `view other total ${view.other.total}`);
+assert(view.other.totalSource === "inverted", "view other is inverted");
 assert(nearly(view.other.pct, 0.362), `other pct is apiPercentUsed, got ${view.other.pct}`);
 assert(view.bot.visible, "bot ledger should show");
 assert(nearly(view.bot.amount, 73.7), `bot amount ${view.bot.amount}`);
@@ -179,9 +207,9 @@ assert(ratioPct(400, 400) === 100, "full other pool is 100%");
 assert(ratioPct(400, 0) == null, "zero total has no ratio");
 assert(ratioPct(null, 400) == null, "missing used has no ratio");
 
-const directOther = estimateOtherPool(400, 18.1);
-assert(nearly(directOther.used, 400 * 18.1 / 100), `estimateOtherPool used ${directOther.used}`);
-assert(nearly(directOther.remaining, 400 - 400 * 18.1 / 100), `estimateOtherPool remaining ${directOther.remaining}`);
+const directOther = estimateOtherTotal(72.4, 18.1, "ultra");
+assert(directOther.source === "inverted", "estimateOtherTotal inverts");
+assert(directOther.value === 400, `estimateOtherTotal ${directOther.value}`);
 
 const otherCappedMeter = buildView(
   {
@@ -206,11 +234,11 @@ const otherCappedMeter = buildView(
   },
 );
 assert(nearly(otherCappedMeter.other.pct, 18.1), `capped meter must keep api 18.1%, got ${otherCappedMeter.other.pct}`);
-assert(nearly(otherCappedMeter.other.used, 400 * 18.1 / 100), `must not treat plan.used $400 as Other used, got ${otherCappedMeter.other.used}`);
-assert(nearly(otherCappedMeter.other.total, 400), `other total ${otherCappedMeter.other.total}`);
-assert(nearly(otherCappedMeter.other.remaining, 400 - 400 * 18.1 / 100), `other remaining ${otherCappedMeter.other.remaining}`);
-assert(otherCappedMeter.other.remaining > 300, "third-party pool is not exhausted");
-assert(Math.abs(otherCappedMeter.other.used - 400) > 50, "Other used must diverge from capped plan.used");
+assert(nearly(otherCappedMeter.other.used, 400), `other used is accumulated claude spend, got ${otherCappedMeter.other.used}`);
+assert(otherCappedMeter.other.total === 2210, `other total inverts from events, got ${otherCappedMeter.other.total}`);
+assert(otherCappedMeter.other.totalSource === "inverted", "capped meter other is inverted");
+assert(nearly(otherCappedMeter.other.remaining, 2210 - 400), `other remaining ${otherCappedMeter.other.remaining}`);
+assert(otherCappedMeter.other.total !== 400, "must not treat plan.limit as Other total");
 assert(nearly(otherCappedMeter.bot.amount, 660.26, 0.05), `screenshot bot ${otherCappedMeter.bot.amount}`);
 assert(otherCappedMeter.bot.pct == null, "screenshot without SAND has no weekly pct");
 
@@ -364,12 +392,17 @@ const legacySnap = {
 assert(snapshotNeedsUpgrade(legacySnap), "pre-bot snapshot needs upgrade fetch");
 const hydratedLegacy = hydrateUsageView(legacySnap);
 assert(!snapshotNeedsUpgrade(hydratedLegacy), "hydrated view has bot");
-assert(nearly(hydratedLegacy.other.used, 400 * 18.1 / 100), `hydrate must not keep plan.used $400, got ${hydratedLegacy.other.used}`);
-assert(hydratedLegacy.other.remaining > 300, "hydrate remaining is API pool leftover");
+assert(nearly(hydratedLegacy.other.used, 400), `hydrate keeps stored other used until refetch, got ${hydratedLegacy.other.used}`);
+assert(hydratedLegacy.other.totalSource === "learned", "legacy other without totalSource hydrates as learned");
+assert(snapshotNeedsUpgrade(legacySnap), "legacy other without totalSource needs upgrade");
 assert(nearly(hydratedLegacy.bot.amount, 660.26, 0.05), `hydrate bot from models ${hydratedLegacy.bot.amount}`);
 assert(hydratedLegacy.bot.pct == null, "legacy snapshot has no weekly pct");
 const hydratedFresh = hydrateUsageView(otherCappedMeter);
 assert(nearly(hydratedFresh.other.used, otherCappedMeter.other.used), "hydrate is idempotent on new views");
+assert(hydratedFresh.other.totalSource === otherCappedMeter.other.totalSource, "hydrate keeps other totalSource");
+const otherWithoutSource = { ...hydratedFresh.other };
+delete otherWithoutSource.totalSource;
+assert(snapshotNeedsUpgrade({ ...hydratedFresh, other: otherWithoutSource }), "missing other.totalSource needs upgrade");
 
 const forumSample = buildView(
   {
@@ -391,8 +424,10 @@ const forumSample = buildView(
     ],
   },
 );
-assert(nearly(forumSample.other.used, 400 * 0.376 / 100), `forum other used ${forumSample.other.used} vs plan.used $29.43`);
-assert(forumSample.other.used < 5, "forum API spend is ~$1.50, not $29.43 total");
+assert(nearly(forumSample.other.used, 1.88128825), `forum other used ${forumSample.other.used} vs plan.used $29.43`);
+assert(forumSample.other.used < 5, "forum other spend is the claude bill, not $29.43 included meter");
+assert(forumSample.other.total === 500, `forum other total ${forumSample.other.total}`);
+assert(forumSample.other.totalSource === "inverted", "forum other is inverted");
 assert(nearly(forumSample.other.pct, 0.376), `forum api pct ${forumSample.other.pct}`);
 
 const otherFallback = buildView(
@@ -400,8 +435,9 @@ const otherFallback = buildView(
   null,
 );
 assert(nearly(otherFallback.other.pct, 18.1), `api pct ${otherFallback.other.pct}`);
-assert(otherFallback.other.total == null, "no official other cap, no catalog fallback");
-assert(otherFallback.other.used == null, "other used unknown without a cap");
+assert(otherFallback.other.total == null, "no events cannot invert other total");
+assert(otherFallback.other.used == null, "other used unknown without events");
+assert(otherFallback.other.totalSource === "none", "other fallback source is none");
 
 const zeroFirst = buildView(
   { membershipType: "ultra", individualUsage: { plan: { autoPercentUsed: 0, apiPercentUsed: 0, limit: 40000 } } },
@@ -420,6 +456,21 @@ const zeroFirstHist = buildView(
 assert(zeroFirstHist.cursor.totalSource === "learned", "zero first-party uses history");
 assert(zeroFirstHist.cursor.total === 3000, "zero first-party history 3000");
 assert(zeroFirstHist.notes.some((n) => n.text.includes("沿用上次")), "history is explained");
+
+const zeroOtherHist = buildView(
+  { membershipType: "ultra", individualUsage: { plan: { autoPercentUsed: 0, apiPercentUsed: 0, limit: 40000 } } },
+  { aggregations: [] },
+  null,
+  { learnedOther: { planKey: "ultra", used: 72.4, pct: 18.1, value: 400 } },
+);
+assert(zeroOtherHist.other.totalSource === "learned", "zero other uses history");
+assert(zeroOtherHist.other.total === 400, "zero other history 400");
+assert(zeroOtherHist.notes.some((n) => n.text.includes("第三方") && n.text.includes("沿用上次")), "other history is explained");
+
+const wrongOtherHistory = estimateOtherTotal(0, 0, "ultra", {
+  learned: { planKey: "pro", used: 72.4, pct: 18.1, value: 400 },
+});
+assert(wrongOtherHistory.source === "none", "do not reuse another plan's other history");
 
 const noApiPct = buildView(
   { membershipType: "ultra", individualUsage: { plan: { used: 40000, limit: 40000 } } },

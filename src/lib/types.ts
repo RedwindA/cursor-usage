@@ -97,6 +97,8 @@ export type UsageView = {
     total: number | null;
     pct: number | null;
     remaining: number | null;
+    totalSource: EstimateSource;
+    totalLabel: string;
     official: boolean;
     bonus: number;
   };

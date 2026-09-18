@@ -4,12 +4,15 @@ import {
   DEFAULT_REFRESH_POLICY,
   learnedBotFromView,
   learnedFromView,
+  learnedOtherFromView,
   loadLearnedBot,
   loadLearnedFirstParty,
+  loadLearnedOther,
   loadRefreshSettings,
   markFetched,
   saveLearnedBot,
   saveLearnedFirstParty,
+  saveLearnedOther,
   saveRefreshPolicy,
   shouldAutoRefresh,
   type RefreshPolicy,
@@ -27,6 +30,7 @@ let policy: RefreshPolicy = DEFAULT_REFRESH_POLICY;
 let lastAt: number | null = null;
 let upgradeFetch = false;
 let learnedFirstParty: Awaited<ReturnType<typeof loadLearnedFirstParty>> = null;
+let learnedOther: Awaited<ReturnType<typeof loadLearnedOther>> = null;
 let learnedBot: Awaited<ReturnType<typeof loadLearnedBot>> = null;
 
 function postToPage(type: "FETCH", extra: Record<string, unknown> = {}): void {
@@ -40,15 +44,17 @@ function isResponse(data: unknown): data is BridgeResponse {
 }
 
 async function boot(): Promise<void> {
-  const [cssText, settings, learned, botLearned] = await Promise.all([
+  const [cssText, settings, learned, otherLearned, botLearned] = await Promise.all([
     fetch(CSS_URL).then((r) => r.text()),
     loadRefreshSettings(),
     loadLearnedFirstParty(),
+    loadLearnedOther(),
     loadLearnedBot(),
   ]);
   policy = settings.policy;
   lastAt = settings.lastAt;
   learnedFirstParty = learned;
+  learnedOther = otherLearned;
   learnedBot = botLearned;
   panel = new UsagePanel(cssText, {
     onRefresh: () => refresh(true),
@@ -112,6 +118,7 @@ window.addEventListener("message", (event: MessageEvent) => {
     const view = buildView(msg.payload.summary, msg.payload.events, msg.payload.sand, {
       planInfo: msg.payload.planInfo,
       learned: learnedFirstParty,
+      learnedOther,
       learnedBot,
       weekEvents: msg.payload.weekEvents,
     });
@@ -128,6 +135,11 @@ window.addEventListener("message", (event: MessageEvent) => {
     if (nextLearned) {
       learnedFirstParty = nextLearned;
       void saveLearnedFirstParty(nextLearned);
+    }
+    const nextOther = learnedOtherFromView(view);
+    if (nextOther) {
+      learnedOther = nextOther;
+      void saveLearnedOther(nextOther);
     }
     const nextBot = learnedBotFromView(view);
     if (nextBot) {
