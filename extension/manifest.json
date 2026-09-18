@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "Cursor 用量明细",
+  "version": "0.1.1",
+  "description": "在 Cursor Dashboard 自动显示个人订阅的美元用量、估算总额和按模型明细。",
+  "permissions": ["storage"],
+  "action": {
+    "default_title": "显示 / 隐藏 Cursor 用量浮层",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["styles/panel.css"],
+      "matches": [
+        "https://cursor.com/*",
+        "https://www.cursor.com/*"
+      ]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://cursor.com/dashboard*",
+        "https://cursor.com/*/dashboard*",
+        "https://www.cursor.com/dashboard*",
+        "https://www.cursor.com/*/dashboard*"
+      ],
+      "js": ["page-bridge.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://cursor.com/dashboard*",
+        "https://cursor.com/*/dashboard*",
+        "https://www.cursor.com/dashboard*",
+        "https://www.cursor.com/*/dashboard*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "world": "ISOLATED"
+    }
+  ]
+}

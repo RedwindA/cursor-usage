@@ -1,0 +1,17 @@
+{
+  "name": "cursou-usage",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Cursor Dashboard usage overlay — personal subscription dollar breakdown",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "verify": "node scripts/verify.mjs"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "esbuild": "^0.25.8",
+    "typescript": "^5.8.3"
+  }
+}

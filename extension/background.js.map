@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../src/background/index.ts"],
+  "sourcesContent": ["chrome.action.onClicked.addListener(async (tab) => {\r\n  if (!tab.id || !tab.url) return;\r\n  let host = \"\";\r\n  try {\r\n    host = new URL(tab.url).hostname;\r\n  } catch {\r\n    return;\r\n  }\r\n  if (host !== \"cursor.com\" && host !== \"www.cursor.com\") return;\r\n  try {\r\n    await chrome.tabs.sendMessage(tab.id, { type: \"TOGGLE_PANEL\" });\r\n  } catch {\r\n    /* content script not on this page */\r\n  }\r\n});\r\n"],
+  "mappings": ";;;AAAA,SAAO,OAAO,UAAU,YAAY,OAAO,QAAQ;AACjD,QAAI,CAAC,IAAI,MAAM,CAAC,IAAI,IAAK;AACzB,QAAI,OAAO;AACX,QAAI;AACF,aAAO,IAAI,IAAI,IAAI,GAAG,EAAE;AAAA,IAC1B,QAAQ;AACN;AAAA,IACF;AACA,QAAI,SAAS,gBAAgB,SAAS,iBAAkB;AACxD,QAAI;AACF,YAAM,OAAO,KAAK,YAAY,IAAI,IAAI,EAAE,MAAM,eAAe,CAAC;AAAA,IAChE,QAAQ;AAAA,IAER;AAAA,EACF,CAAC;",
+  "names": []
+}
