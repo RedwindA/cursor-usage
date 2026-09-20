@@ -3,20 +3,21 @@
 }
 
 .cu-mount {
-  font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 13px;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .cu-panel {
-  --bg: #0f0f0f;
-  --bg-elev: #161616;
-  --bg-row: #1f1f1f;
-  --border: #262626;
-  --fg: #ededed;
-  --muted: #8b8b8b;
-  --soft: #b4b4b4;
-  --accent: #3b82f6;
+  /* Inherit the dashboard palette through Shadow DOM; retain standalone fallbacks. */
+  --bg: var(--bg-chrome, #141414);
+  --bg-elev: var(--bg-elevated, #181818);
+  --bg-row: var(--bg-quaternary, #242424);
+  --border: var(--border-tertiary, #292929);
+  --fg: var(--text-primary, #f0f0f0);
+  --muted: var(--text-tertiary, #999999);
+  --soft: var(--text-secondary, #b7b7b7);
+  --accent: var(--text-tertiary, #999999);
   --cursor: var(--accent);
   --cursor-strong: var(--accent);
   --other: var(--accent);
@@ -27,32 +28,32 @@
   --warn: #d97706;
   --hot: #dc2626;
   --data: inherit;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
   color-scheme: dark;
   position: fixed;
   z-index: 2147483646;
-  width: 392px;
+  width: min(392px, calc(100vw - 24px));
   max-height: 72vh;
   display: flex;
   flex-direction: column;
   color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   box-shadow: var(--shadow);
   overflow: hidden;
   animation: cu-in 120ms ease-out;
 }
 
 .cu-panel.theme-light {
-  --bg: #ffffff;
-  --bg-elev: #fafafa;
-  --bg-row: #f1f1f1;
-  --border: #e5e5e5;
-  --fg: #171717;
-  --muted: #737373;
-  --soft: #525252;
-  --accent: #2563eb;
+  --bg: var(--bg-chrome, #ffffff);
+  --bg-elev: var(--bg-elevated, #f9f9f9);
+  --bg-row: var(--bg-quaternary, #f0f0f0);
+  --border: var(--border-tertiary, #e8e8e8);
+  --fg: var(--text-primary, #181818);
+  --muted: var(--text-tertiary, #737373);
+  --soft: var(--text-secondary, #525252);
+  --accent: var(--text-tertiary, #737373);
   --warn: #d97706;
   --hot: #dc2626;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
@@ -129,13 +130,13 @@
 }
 
 .cu-restore {
-  --bg: #0f0f0f;
-  --bg-elev: #161616;
-  --border: #262626;
-  --fg: #ededed;
-  --accent: #3b82f6;
+  --bg: var(--bg-chrome, #141414);
+  --bg-elev: var(--bg-elevated, #181818);
+  --border: var(--border-tertiary, #292929);
+  --fg: var(--text-primary, #f0f0f0);
+  --accent: var(--text-tertiary, #999999);
   --cursor: var(--accent);
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
   appearance: none;
   position: fixed;
   right: 16px;
@@ -151,7 +152,7 @@
   color: var(--fg);
   box-shadow: var(--shadow);
   cursor: pointer;
-  font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
@@ -159,11 +160,11 @@
 }
 
 .cu-restore.theme-light {
-  --bg: #ffffff;
-  --bg-elev: #fafafa;
-  --border: #e5e5e5;
-  --fg: #171717;
-  --accent: #2563eb;
+  --bg: var(--bg-chrome, #ffffff);
+  --bg-elev: var(--bg-elevated, #f9f9f9);
+  --border: var(--border-tertiary, #e8e8e8);
+  --fg: var(--text-primary, #181818);
+  --accent: var(--text-tertiary, #737373);
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   color-scheme: light;
 }
@@ -195,8 +196,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px 10px 10px 12px;
-  border-bottom: 1px solid var(--border);
+  padding: 14px 12px 14px 16px;
+  border-bottom: 0;
   background: var(--bg);
   cursor: grab;
 }
@@ -215,8 +216,8 @@
 .cu-mark {
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   color: var(--accent);
   flex: none;
 }
@@ -230,9 +231,9 @@
 }
 
 .cu-title {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: normal;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -311,27 +312,29 @@
 }
 
 .cu-body {
-  padding: 12px;
+  padding: 0 16px 16px;
   overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 20px;
   flex: 1 1 auto;
   min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 
 .cu-pools {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
 }
 
 .cu-card {
   position: relative;
   background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 11px 12px 10px;
+  border: 0;
+  border-radius: 0;
+  padding: 12px 16px;
   overflow: hidden;
 }
 
@@ -340,42 +343,48 @@
 }
 
 .cu-card.is-clickable:hover {
-  border-color: color-mix(in srgb, var(--fg) 22%, var(--border));
+  border-color: transparent;
+  background: color-mix(in srgb, var(--fg) 4%, var(--bg-elev));
 }
 
 .cu-card.is-on {
-  border-color: var(--accent);
+  border-color: transparent;
+  background: color-mix(in srgb, var(--fg) 6%, var(--bg-elev));
 }
 
 .cu-card-top {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: baseline;
   gap: 8px;
 }
 
 .cu-kicker {
-  font-size: 11px;
+  font-size: 13px;
+  color: var(--fg);
+  font-weight: 400;
 }
 
 .cu-card-name {
-  font-size: 13px;
-  font-weight: 500;
-  margin-top: 1px;
+  font-size: 11px;
+  font-weight: 400;
+  margin-top: 0;
+  color: var(--muted);
 }
 
 .cu-badge {
-  font-size: 10px;
-  padding: 2px 6px;
+  font-size: 11px;
+  padding: 0;
   border-radius: 4px;
-  border: 1px solid var(--border);
+  border: 0;
   background: transparent;
-  color: var(--soft);
+  color: var(--muted);
   white-space: nowrap;
+  margin-left: auto;
 }
 
 .cu-badge.tone-ok {
-  color: var(--fg);
+  color: var(--muted);
 }
 
 .cu-badge.tone-warn {
@@ -385,16 +394,16 @@
 .cu-metric {
   display: flex;
   align-items: baseline;
-  gap: 6px;
-  margin: 10px 0 8px;
+  gap: 5px;
+  margin: 8px 0 10px;
   font-variant-numeric: tabular-nums;
 }
 
 .cu-used {
   font-family: var(--data);
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: normal;
 }
 
 .cu-slash,
@@ -407,19 +416,29 @@
 
 .cu-pct {
   margin-left: auto;
+  white-space: nowrap;
+  color: var(--soft);
+  font-size: 13px;
+}
+
+/* Spending accents Cursor Models and Grok Bot; Other Models stays neutral. */
+.cu-card.kind-cursor,
+.cu-card.kind-bot {
+  --usage-fill: var(--color-dashboard-usage-accent, #81a1c1);
+  --usage-track: var(--color-dashboard-usage-accent-10, color-mix(in oklab, var(--usage-fill) 10%, transparent));
 }
 
 .cu-bar {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--bg-row);
+  height: 8px;
+  border-radius: 999px;
+  background: var(--usage-track, var(--bg-tertiary, var(--bg-row)));
   overflow: hidden;
 }
 
 .cu-bar-fill {
   height: 100%;
   border-radius: inherit;
-  background: var(--accent);
+  background: var(--usage-fill, var(--accent));
 }
 
 .cu-bar-fill.tone-warm {
@@ -431,7 +450,7 @@
 }
 
 .cu-card-foot {
-  margin-top: 7px;
+  margin-top: 6px;
   font-size: 12px;
 }
 
@@ -473,11 +492,12 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 4px 8px;
-  margin-bottom: 6px;
+  margin-bottom: 12px;
 }
 
 .cu-section-label {
-  font-size: 12px;
+  font-size: 13px;
+  color: var(--fg);
 }
 
 .cu-models-sum,
@@ -511,20 +531,24 @@
 .cu-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
+  gap: 2px;
+  margin-bottom: 12px;
+  padding: 3px;
+  background: var(--bg-elev);
+  border-radius: 8px;
 }
 
 .cu-chip {
   appearance: none;
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   background: transparent;
   color: var(--soft);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
-  padding: 5px 8px;
-  border-radius: 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
   cursor: pointer;
+  font-family: inherit;
 }
 
 .cu-chip:hover {
@@ -622,8 +646,8 @@
 }
 
 .cu-lane-title {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .cu-lane-hint {
@@ -635,8 +659,8 @@
   margin-left: auto;
   font-family: var(--data);
   font-variant-numeric: tabular-nums;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 400;
   color: var(--soft);
 }
 
@@ -652,9 +676,9 @@
   grid-template-columns: repeat(5, minmax(0, 1fr));
   column-gap: 10px;
   row-gap: 0;
-  margin: 0 0 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 0;
   border-radius: 8px;
   background: var(--bg-elev);
 }
@@ -692,21 +716,21 @@
   font-family: var(--data);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-weight: 400;
+  letter-spacing: normal;
   white-space: nowrap;
   color: var(--fg);
 }
 
 .cu-metrics.is-compact .cu-metric-v {
   font-size: 11px;
-  font-weight: 550;
+  font-weight: 400;
 }
 
 .cu-table {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
 }
 
 .cu-row {
@@ -715,16 +739,18 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  padding: 8px 8px;
-  border-radius: 8px;
+  padding: 12px 0;
+  border-radius: 0;
   overflow: hidden;
+  border-bottom: 1px solid var(--border);
 }
 
 .cu-row-bar {
   position: absolute;
-  inset: 0 auto 0 0;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  inset: auto auto 0 0;
+  background: var(--bg-tertiary, var(--bg-row));
   pointer-events: none;
+  height: 2px;
 }
 
 .cu-row-main,
@@ -733,8 +759,9 @@
 }
 
 .cu-row-name {
-  font-size: 12px;
-  font-weight: 550;
+  font-size: 13px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
 }
 
 .cu-row-meta {
@@ -750,8 +777,8 @@
 .cu-row-cost {
   font-family: var(--data);
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 400;
   color: var(--fg);
 }
 
@@ -759,12 +786,12 @@
   display: inline-block;
   margin-top: 3px;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1;
-  padding: 3px 6px;
+  padding: 0;
   border-radius: 4px;
-  color: var(--soft);
-  background: var(--bg-row);
+  color: var(--muted);
+  background: transparent;
 }
 
 .cu-notes {
@@ -775,10 +802,11 @@
 
 .cu-note {
   font-size: 11px;
-  color: var(--fg);
-  padding: 7px 8px;
+  color: var(--muted);
+  padding: 0;
   border-radius: 6px;
-  background: var(--bg-row);
+  background: transparent;
+  line-height: 1.6;
 }
 
 .cu-note.tone-warn {
@@ -862,8 +890,8 @@
   display: flex;
   gap: 6px;
   align-items: center;
-  padding: 8px 12px 10px;
-  font-size: 12px;
+  padding: 10px 16px;
+  font-size: 11px;
   border-top: 1px solid var(--border);
 }
 
@@ -900,10 +928,10 @@
 }
 
 .cu-tip {
-  --bg-elev: #161616;
-  --border: #262626;
-  --fg: #ededed;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --bg-elev: var(--bg-elevated, #181818);
+  --border: var(--border-tertiary, #292929);
+  --fg: var(--text-primary, #f0f0f0);
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
   position: fixed;
   z-index: 2147483647;
   max-width: 220px;
@@ -919,10 +947,74 @@
 }
 
 .cu-tip.is-light {
-  --bg-elev: #fafafa;
-  --border: #e5e5e5;
-  --fg: #171717;
+  --bg-elev: var(--bg-elevated, #f9f9f9);
+  --border: var(--border-tertiary, #e8e8e8);
+  --fg: var(--text-primary, #181818);
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* Match Spending's grouped monthly rows and separate weekly allowance. */
+.cu-card.kind-cursor {
+  border-radius: 12px 12px 0 0;
+}
+
+.cu-card.kind-other {
+  border-top: 1px solid var(--border-quaternary, var(--border));
+  border-radius: 0 0 12px 12px;
+}
+
+.cu-card.kind-bot {
+  margin-top: 16px;
+  border-radius: 12px;
+}
+
+.cu-side-row {
+  margin-top: 16px;
+}
+
+.cu-card-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  min-width: 0;
+}
+
+.cu-row-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.cu-panel.is-expanded .cu-card {
+  border: 0;
+  border-radius: 12px;
+  margin-top: 0;
+}
+
+.cu-panel.is-expanded .cu-side-row {
+  margin-top: 0;
+}
+
+@media (max-width: 640px) {
+  .cu-panel.is-expanded .cu-body {
+    overflow: auto;
+  }
+
+  .cu-panel.is-expanded .cu-models,
+  .cu-panel.is-expanded .cu-lanes.is-cols,
+  .cu-panel.is-expanded .cu-lanes.is-cols .cu-lane {
+    flex: none;
+    overflow: visible;
+  }
+
+  .cu-panel.is-expanded .cu-lanes.is-cols {
+    display: flex;
+  }
+
+  .cu-models-split {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

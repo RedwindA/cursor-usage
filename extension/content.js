@@ -1362,11 +1362,11 @@
         { class: "cu-card-top" },
         h(
           "div",
-          null,
+          { class: "cu-card-heading" },
           h("div", { class: "cu-kicker" }, opts.kicker),
           h("div", { class: "cu-card-name" }, opts.title)
         ),
-        h("span", { class: `cu-badge tone-${opts.badgeTone}` }, opts.badge)
+        h("span", { class: "cu-pct" }, `${formatPct(pct)} \u5DF2\u7528`)
       ),
       h(
         "div",
@@ -1374,14 +1374,14 @@
         h("span", { class: "cu-used" }, formatMoney(opts.used)),
         h("span", { class: "cu-slash" }, "/"),
         h("span", { class: "cu-total" }, formatMoney(opts.total)),
-        h("span", { class: "cu-pct" }, formatPct(pct))
+        h("span", { class: `cu-badge tone-${opts.badgeTone}` }, opts.badge)
       ),
       h(
         "div",
         { class: "cu-bar" },
         h("div", {
           class: `cu-bar-fill tone-${barTone}`,
-          style: `width:${clamp(pct ?? 0, 0, 100).toFixed(2)}%`
+          style: `width:${clamp(pct ?? 0, 0, 100).toFixed(2)}%;min-width:${pct != null && pct > 0 ? 2 : 0}px`
         })
       ),
       h(
@@ -1513,7 +1513,7 @@
   function iconMark() {
     const wrap = document.createElement("span");
     wrap.className = "cu-mark";
-    wrap.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="6" fill="currentColor"/><rect x="6.2" y="8" width="11.6" height="2.6" rx="1.3" fill="#fff"/><rect x="6.2" y="13.4" width="7.2" height="2.6" rx="1.3" fill="#fff" fill-opacity=".88"/></svg>`;
+    wrap.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M5 19V12M12 19V5M19 19V9"/></svg>`;
     return wrap;
   }
   function iconRefresh() {
